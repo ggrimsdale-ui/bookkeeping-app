@@ -47,6 +47,8 @@ export interface JournalLine {
   debit: number
   credit: number
   memo: string
+  /** Reconciliation status, read-only. Set by the reconcile screen. */
+  cleared?: 'none' | 'pending' | 'reconciled'
 }
 
 export interface JournalEntry {
@@ -89,11 +91,13 @@ export interface ClosingOverride {
   closingPassword?: string
   /** Confirmed by the user when no closing password is set. */
   confirmClosedPeriod?: boolean
+  /** Confirmed by the user when the change touches a reconciled transaction. */
+  confirmReconciled?: boolean
 }
 
 // ----- Reports -----
 
-export type ReportKind = 'profitAndLoss' | 'balanceSheet' | 'trialBalance' | 'generalLedger'
+export type ReportKind = 'profitAndLoss' | 'balanceSheet' | 'trialBalance' | 'generalLedger' | 'reconciliation'
 
 export interface Drill {
   accountId?: number
@@ -133,10 +137,61 @@ export interface ReportParams {
   showChange?: boolean
   accountIds?: number[]
   showZeroBalances?: boolean
+  /** Reconciliation report: which reconciliation to show. */
+  reconciliationId?: number
 }
 
 export interface RecentCompany {
   path: string
   name: string
   openedAt: string
+}
+
+// ----- Reconciliation -----
+
+export interface Reconciliation {
+  id: number
+  accountId: number
+  statementDate: string
+  beginningBalance: number
+  endingBalance: number
+  /** Amount posted to Reconciliation Discrepancies, in the account's natural sign. */
+  adjustment: number
+  reconciledAt: string
+}
+
+export interface ReconcileItem {
+  lineId: number
+  entryId: number
+  date: string
+  ref: string
+  memo: string
+  /** Natural sign: positive increases the account (a deposit, a card charge). */
+  amount: number
+  marked: boolean
+}
+
+export interface ReconcileSession {
+  account: Account
+  lastReconciliation: Reconciliation | null
+  beginningBalance: number
+  /** Statement details saved by "Leave" or by starting the reconciliation. */
+  draft: { statementDate: string; endingBalance: number } | null
+  items: ReconcileItem[]
+  clearedBalance: number
+}
+
+export interface StatementCharge {
+  date: string
+  /** Positive cents. */
+  amount: number
+  accountId: number | null
+}
+
+export interface ReconcileStart {
+  accountId: number
+  statementDate: string
+  endingBalance: number
+  serviceCharge?: StatementCharge
+  interest?: StatementCharge
 }

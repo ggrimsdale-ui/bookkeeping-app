@@ -14,10 +14,11 @@ import type {
   EntryFilter,
   JournalEntry,
   JournalEntryInput,
-  JournalEntrySummary
+  JournalEntrySummary,
+  JournalLine
 } from '../shared/types'
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 const FILE_MARKER = 'bookkeeping-company'
 
 const SCHEMA = `
@@ -56,6 +57,30 @@ CREATE INDEX idx_lines_entry ON journal_lines(entry_id);
 CREATE INDEX idx_lines_account ON journal_lines(account_id);
 `
 
+/** Upgrades applied in order. Index i upgrades a file from version i + 1 to i + 2. */
+const MIGRATIONS = [
+  // 2: account reconciliation
+  `
+  ALTER TABLE journal_lines ADD COLUMN cleared TEXT NOT NULL DEFAULT 'none';
+  ALTER TABLE journal_lines ADD COLUMN reconciliation_id INTEGER REFERENCES reconciliations(id);
+  CREATE TABLE reconciliations (
+    id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id),
+    statement_date TEXT NOT NULL,
+    beginning_balance INTEGER NOT NULL,
+    ending_balance INTEGER NOT NULL,
+    adjustment INTEGER NOT NULL DEFAULT 0,
+    reconciled_at TEXT NOT NULL
+  );
+  CREATE TABLE reconcile_drafts (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
+    statement_date TEXT NOT NULL,
+    ending_balance INTEGER NOT NULL
+  );
+  CREATE INDEX idx_reconciliations_account ON reconciliations(account_id);
+  `
+]
+
 type Row = Record<string, SqlValue>
 
 interface AccountRow {
@@ -82,7 +107,8 @@ export class Company {
     company.transaction(() => {
       company.db.exec(SCHEMA)
       company.setMeta('marker', FILE_MARKER)
-      company.setMeta('schemaVersion', String(SCHEMA_VERSION))
+      company.setMeta('schemaVersion', '1')
+      company.migrate()
       company.writeInfo(info)
       const idsByNumber = new Map<string, number>()
       for (const a of templateAccounts(template)) {
@@ -111,7 +137,16 @@ export class Company {
     if (version > SCHEMA_VERSION) {
       throw new Error('This company file was created by a newer version of the app. Please update the app.')
     }
+    if (version < SCHEMA_VERSION) company.transaction(() => company.migrate())
     return company
+  }
+
+  /** Brings the schema up to SCHEMA_VERSION. Runs inside the caller's transaction. */
+  private migrate(): void {
+    for (let v = Number(this.getMeta('schemaVersion')); v < SCHEMA_VERSION; v++) {
+      this.db.exec(MIGRATIONS[v - 1])
+      this.setMeta('schemaVersion', String(v + 1))
+    }
   }
 
   export(): Uint8Array {
@@ -124,7 +159,8 @@ export class Company {
 
   // ----- Low-level helpers -----
 
-  private all<T>(sql: string, params: SqlValue[] = []): T[] {
+  /** @internal Used by the reconcile module. */
+  all<T>(sql: string, params: SqlValue[] = []): T[] {
     const stmt = this.db.prepare(sql)
     try {
       stmt.bind(params)
@@ -136,11 +172,11 @@ export class Company {
     }
   }
 
-  private get<T>(sql: string, params: SqlValue[] = []): T | undefined {
+  get<T>(sql: string, params: SqlValue[] = []): T | undefined {
     return this.all<T>(sql, params)[0]
   }
 
-  private lastId(): number {
+  lastId(): number {
     return this.db.exec('SELECT last_insert_rowid()')[0].values[0][0] as number
   }
 
@@ -377,7 +413,8 @@ export class Company {
         accountId: l.account_id as number,
         debit: l.debit as number,
         credit: l.credit as number,
-        memo: l.memo as string
+        memo: l.memo as string,
+        cleared: l.cleared as JournalLine['cleared']
       }))
     }
   }
@@ -451,13 +488,23 @@ export class Company {
     if (existing.isVoid) throw new Error('A void entry cannot be edited.')
     const clean = this.validateEntry(input)
     this.assertOpenPeriod([existing.date, clean.date], override)
+
+    // Carry each line's cleared status over to the matching new line (same account and amount).
+    type Status = { account_id: number; debit: number; credit: number; cleared: string; reconciliation_id: number | null }
+    const old = this.all<Status>('SELECT account_id, debit, credit, cleared, reconciliation_id FROM journal_lines WHERE entry_id = ?', [id])
+    const carried = clean.lines.map((l) => {
+      const i = old.findIndex((o) => o.account_id === l.accountId && o.debit === l.debit && o.credit === l.credit)
+      return i === -1 ? null : old.splice(i, 1)[0]
+    })
+    if (old.some((o) => o.cleared === 'reconciled') && !override?.confirmReconciled) throw new ReconciledChangeError()
+
     this.transaction(() => {
       this.db.run(
         'UPDATE journal_entries SET date = ?, ref = ?, memo = ?, is_opening = ?, updated_at = ? WHERE id = ?',
         [clean.date, clean.ref, clean.memo, clean.isOpening ? 1 : 0, new Date().toISOString(), id]
       )
       this.db.run('DELETE FROM journal_lines WHERE entry_id = ?', [id])
-      this.insertLines(id, clean)
+      this.insertLines(id, clean, carried)
     })
     return this.getEntry(id)
   }
@@ -466,6 +513,7 @@ export class Company {
   voidEntry(id: number, override?: ClosingOverride): void {
     const existing = this.getEntry(id)
     this.assertOpenPeriod([existing.date], override)
+    this.assertReconciledChangeConfirmed(existing, override)
     this.transaction(() => {
       this.db.run("UPDATE journal_entries SET is_void = 1, memo = 'VOID: ' || memo, updated_at = ? WHERE id = ?", [
         new Date().toISOString(),
@@ -477,6 +525,7 @@ export class Company {
   deleteEntry(id: number, override?: ClosingOverride): void {
     const existing = this.getEntry(id)
     this.assertOpenPeriod([existing.date], override)
+    this.assertReconciledChangeConfirmed(existing, override)
     this.transaction(() => {
       this.db.run('DELETE FROM journal_lines WHERE entry_id = ?', [id])
       this.db.run('DELETE FROM journal_entries WHERE id = ?', [id])
@@ -492,11 +541,19 @@ export class Company {
     return row.ref.replace(/(\d+)$/, (digits) => String(Number(digits) + 1).padStart(digits.length, '0'))
   }
 
-  private insertLines(entryId: number, entry: JournalEntryInput): void {
+  private assertReconciledChangeConfirmed(entry: JournalEntry, override?: ClosingOverride): void {
+    if (entry.lines.some((l) => l.cleared === 'reconciled') && !override?.confirmReconciled) throw new ReconciledChangeError()
+  }
+
+  private insertLines(
+    entryId: number,
+    entry: JournalEntryInput,
+    status: ({ cleared: string; reconciliation_id: number | null } | null)[] = []
+  ): void {
     entry.lines.forEach((l, i) => {
       this.db.run(
-        'INSERT INTO journal_lines (entry_id, line_no, account_id, debit, credit, memo) VALUES (?, ?, ?, ?, ?, ?)',
-        [entryId, i + 1, l.accountId, l.debit, l.credit, l.memo.trim()]
+        'INSERT INTO journal_lines (entry_id, line_no, account_id, debit, credit, memo, cleared, reconciliation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [entryId, i + 1, l.accountId, l.debit, l.credit, l.memo.trim(), status[i]?.cleared ?? 'none', status[i]?.reconciliation_id ?? null]
       )
     })
   }
@@ -605,6 +662,15 @@ export class ClosedPeriodError extends Error {
         : `This change affects a closed period (on or before ${formatDate(closingDate)}). Confirm to continue.`
     )
     this.name = 'ClosedPeriodError'
+  }
+}
+
+export class ReconciledChangeError extends Error {
+  constructor() {
+    super(
+      'This entry includes a reconciled transaction. Changing it will throw off the beginning balance of your next reconciliation. Continue anyway?'
+    )
+    this.name = 'ReconciledChangeError'
   }
 }
 

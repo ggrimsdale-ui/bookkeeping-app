@@ -1,6 +1,7 @@
 import { isDebitNormal, isProfitAndLoss } from './accountTypes'
 import type { AccountType } from './accountTypes'
 import type { Company } from './company'
+import { reconciliationReport } from './reconcile'
 import { addDays, fiscalYearStart, formatDate, formatLongDate } from './dates'
 import type { Account, Drill, Report, ReportColumn, ReportParams, ReportRow } from '../shared/types'
 
@@ -485,5 +486,8 @@ export function buildReport(company: Company, params: ReportParams): Report {
       return trialBalance(company, params)
     case 'generalLedger':
       return generalLedger(company, params)
+    case 'reconciliation':
+      if (!params.reconciliationId) throw new Error('Choose a reconciliation')
+      return reconciliationReport(company, params.reconciliationId)
   }
 }

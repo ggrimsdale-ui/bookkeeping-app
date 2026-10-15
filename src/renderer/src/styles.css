@@ -319,6 +319,11 @@ button.icon {
   font-size: 13px;
   color: #344054;
   flex: 1;
+  min-width: 0;
+}
+
+.form label select {
+  width: 100%;
 }
 
 .form .row {
@@ -704,4 +709,91 @@ table.report td.drill:hover {
   table.report thead {
     display: table-header-group;
   }
+}
+
+/* ----- Reconcile ----- */
+
+.statement-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  font-size: 13px;
+}
+
+.statement-facts span {
+  color: var(--muted);
+}
+
+.info-banner {
+  background: var(--accent-soft);
+  border: 1px solid #b7dcc5;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.reconcile-page {
+  max-width: none;
+}
+
+.reconcile-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.reconcile-pane {
+  min-width: 0;
+}
+
+.pane-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pane-scroll {
+  max-height: calc(100vh - 380px);
+  min-height: 160px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.pane-scroll table.grid {
+  border: none;
+}
+
+.pane-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+table.reconcile-items tr.marked td {
+  background: var(--selected);
+}
+
+.reconcile-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+
+.summary-col > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+.summary-col .difference {
+  font-weight: 700;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 6px;
 }

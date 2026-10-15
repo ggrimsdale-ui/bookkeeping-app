@@ -3,11 +3,20 @@ import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
 import initSqlJs from 'sql.js'
 import type { SqlJsStatic } from 'sql.js'
-import { ClosedPeriodError, Company } from '../core/company'
+import { ClosedPeriodError, Company, ReconciledChangeError } from '../core/company'
 import { isDebitNormal } from '../core/accountTypes'
 import { reportToCsv } from '../core/exportReport'
 import { enterOpeningBalances } from '../core/openingBalances'
 import { balancesAsOf, buildReport } from '../core/reports'
+import {
+  discardReconcile,
+  finishReconcile,
+  listReconciliations,
+  reconcileSession,
+  setMarked,
+  startReconcile,
+  undoLastReconciliation
+} from '../core/reconcile'
 import type { Api, ApiMethod, ApiResult, MenuCommand, OpenCompany } from '../shared/api'
 import { reportToXlsx } from './excel'
 import { addRecent, readFileBytes, readRecent, removeRecent, writeFileAtomic } from './files'
@@ -163,6 +172,18 @@ const handlers: { [K in ApiMethod]: (...args: Parameters<Api[K]>) => ReturnType<
   voidEntry: (id, override) => mutate((c) => c.voidEntry(id, override)),
   deleteEntry: (id, override) => mutate((c) => c.deleteEntry(id, override)),
 
+  reconcileSession: (accountId) => reconcileSession(requireCompany(), accountId),
+  startReconcile: (input, override) => mutate((c) => startReconcile(c, input, override)),
+  setReconcileMarked: (accountId, lineIds, marked) =>
+    mutate((c) => {
+      setMarked(c, accountId, lineIds, marked)
+      return reconcileSession(c, accountId)
+    }),
+  discardReconcile: (accountId) => mutate((c) => discardReconcile(c, accountId)),
+  finishReconcile: (accountId, adjust, override) => mutate((c) => finishReconcile(c, accountId, adjust, override)),
+  undoLastReconciliation: (accountId) => mutate((c) => undoLastReconciliation(c, accountId)),
+  listReconciliations: (accountId) => listReconciliations(requireCompany(), accountId),
+
   report: (params) => buildReport(requireCompany(), params),
 
   async exportReport(params, format) {
@@ -210,6 +231,7 @@ function registerIpc(): void {
       if (err instanceof ClosedPeriodError) {
         return { ok: false, error: err.message, closedPeriod: { closingDate: err.closingDate, needsPassword: err.needsPassword } }
       }
+      if (err instanceof ReconciledChangeError) return { ok: false, error: err.message, reconciledChange: true }
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   })

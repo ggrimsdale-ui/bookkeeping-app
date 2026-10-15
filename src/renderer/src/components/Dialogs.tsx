@@ -73,7 +73,7 @@ export function DialogHost({ children }: { children: ReactNode }): JSX.Element {
         withClosingOverride(
           {
             password: (message) => d.prompt(message, { title: 'Closed period', password: true }),
-            confirm: (message) => d.confirm(message, { title: 'Closed period', okLabel: 'Continue' })
+            confirm: (message) => d.confirm(message, { title: 'Please confirm', okLabel: 'Continue' })
           },
           fn
         )
