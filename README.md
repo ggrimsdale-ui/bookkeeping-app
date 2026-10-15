@@ -15,6 +15,12 @@ Built with Electron, React and TypeScript. Each company is a single `.books` fil
 
 Income and expense accounts reset at each fiscal year end, and prior years' profit rolls into Retained Earnings automatically. No closing entries are needed.
 
+## Installing on Windows
+
+Every merge to `main` builds a Windows installer and attaches it to the latest release on the [Releases page](https://github.com/ggrimsdale-ui/bookkeeping-app/releases). Download `Bookkeeping-Setup-<version>.exe` and run it.
+
+The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**.
+
 ## Development
 
 Requires Node.js 22.
