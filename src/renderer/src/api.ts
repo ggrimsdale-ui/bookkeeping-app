@@ -4,7 +4,8 @@ import type { ClosingOverride } from '../../shared/types'
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly closedPeriod?: { closingDate: string; needsPassword: boolean }
+    readonly closedPeriod?: { closingDate: string; needsPassword: boolean },
+    readonly reconciledChange?: boolean
   ) {
     super(message)
   }
@@ -24,7 +25,7 @@ export const api = new Proxy({} as Promisified, {
     (_target, method: string) =>
     async (...args: unknown[]) => {
       const result = await window.bridge.call(method as ApiMethod, args)
-      if (!result.ok) throw new ApiError(result.error, result.closedPeriod)
+      if (!result.ok) throw new ApiError(result.error, result.closedPeriod, result.reconciledChange)
       return result.value
     }
 })
@@ -35,20 +36,29 @@ export interface ClosingPrompts {
 }
 
 /**
- * Runs a change and, if it touches a closed period, asks for the closing
- * password (or a confirmation) and retries once.
+ * Runs a change and, if it touches a closed period or a reconciled
+ * transaction, asks for the closing password or a confirmation and retries.
  */
 export async function withClosingOverride<T>(prompts: ClosingPrompts, fn: (override?: ClosingOverride) => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } catch (err) {
-    if (!(err instanceof ApiError) || !err.closedPeriod) throw err
-    if (err.closedPeriod.needsPassword) {
-      const password = await prompts.password(err.message)
-      if (password === null) throw new Cancelled()
-      return fn({ closingPassword: password })
+  const override: ClosingOverride = {}
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn(attempt === 0 ? undefined : { ...override })
+    } catch (err) {
+      if (!(err instanceof ApiError) || attempt >= 3) throw err
+      if (err.closedPeriod && !override.closingPassword && !override.confirmClosedPeriod) {
+        if (err.closedPeriod.needsPassword) {
+          const password = await prompts.password(err.message)
+          if (password === null) throw new Cancelled()
+          override.closingPassword = password
+        } else {
+          if (!(await prompts.confirm(err.message))) throw new Cancelled()
+          override.confirmClosedPeriod = true
+        }
+      } else if (err.reconciledChange && !override.confirmReconciled) {
+        if (!(await prompts.confirm(err.message))) throw new Cancelled()
+        override.confirmReconciled = true
+      } else throw err
     }
-    if (!(await prompts.confirm(err.message))) throw new Cancelled()
-    return fn({ confirmClosedPeriod: true })
   }
 }

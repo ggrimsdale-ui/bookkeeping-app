@@ -2,7 +2,7 @@ import { cellText } from '../../../core/exportReport'
 import type { Drill, Report } from '../../../shared/types'
 
 export function ReportTable({ report, onDrill }: { report: Report; onDrill: (drill: Drill) => void }): JSX.Element {
-  const ledger = report.kind === 'generalLedger'
+  const ledger = report.kind === 'generalLedger' || report.kind === 'reconciliation'
   return (
     <div className="report-paper">
       <div className="report-heading">
@@ -26,7 +26,9 @@ export function ReportTable({ report, onDrill }: { report: Report; onDrill: (dri
             if (row.kind === 'section' && ledger) {
               return (
                 <tr key={r} className="row-section">
-                  <td colSpan={report.columns.length}>{row.cells[0]}</td>
+                  <td colSpan={report.columns.length} style={row.indent ? { paddingLeft: 6 + row.indent * 18 } : undefined}>
+                    {row.cells[0]}
+                  </td>
                 </tr>
               )
             }

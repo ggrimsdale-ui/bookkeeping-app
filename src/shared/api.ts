@@ -8,6 +8,9 @@ import type {
   JournalEntry,
   JournalEntryInput,
   JournalEntrySummary,
+  ReconcileSession,
+  ReconcileStart,
+  Reconciliation,
   RecentCompany,
   Report,
   ReportParams,
@@ -59,6 +62,15 @@ export interface Api {
   voidEntry(id: number, override?: ClosingOverride): void
   deleteEntry(id: number, override?: ClosingOverride): void
 
+  // Reconciliation
+  reconcileSession(accountId: number): ReconcileSession
+  startReconcile(input: ReconcileStart, override?: ClosingOverride): ReconcileSession
+  setReconcileMarked(accountId: number, lineIds: number[], marked: boolean): ReconcileSession
+  discardReconcile(accountId: number): void
+  finishReconcile(accountId: number, adjust: boolean, override?: ClosingOverride): number
+  undoLastReconciliation(accountId: number): void
+  listReconciliations(accountId: number): Reconciliation[]
+
   // Reports
   report(params: ReportParams): Report
   exportReport(params: ReportParams, format: ExportFormat): string | null
@@ -69,6 +81,12 @@ export type ApiMethod = keyof Api
 
 export type ApiResult<T> =
   | { ok: true; value: T }
-  | { ok: false; error: string; closedPeriod?: { closingDate: string; needsPassword: boolean } }
+  | {
+      ok: false
+      error: string
+      closedPeriod?: { closingDate: string; needsPassword: boolean }
+      /** The change touches a reconciled transaction and needs confirmation. */
+      reconciledChange?: boolean
+    }
 
 export type MenuCommand = 'new' | 'open' | 'close' | 'backup' | 'restore'

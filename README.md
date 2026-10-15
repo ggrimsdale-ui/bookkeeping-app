@@ -11,6 +11,7 @@ Built with Electron, React and TypeScript. Each company is a single `.books` fil
 - **Chart of accounts**: starter templates (general, service, retail, blank), account numbers, sub-accounts, inactive accounts, and an opening balances helper that offsets to Opening Balance Equity.
 - **Journal entries**: multi-line entries that must balance before saving, edit, void, delete, search by date, ref or memo.
 - **Reports**: Profit & Loss, Balance Sheet, Trial Balance and General Ledger, with date presets, prior period or prior year comparison with $ and % change, drill-down from any amount to the transactions, print, and export to PDF, Excel and CSV.
+- **Reconcile**: QuickBooks-style reconciliation for bank, credit card and other balance sheet accounts. Enter the statement date, ending balance, service charge and interest, then tick off cleared transactions until the difference is zero. You can leave and finish later, enter an adjustment for a difference, view a Reconciliation Detail report, and undo the last reconciliation. Changing a reconciled transaction asks for confirmation first.
 - **Closing date**: entries on or before the closing date are locked behind a confirmation, or a password if one is set.
 
 Income and expense accounts reset at each fiscal year end, and prior years' profit rolls into Retained Earnings automatically. No closing entries are needed.

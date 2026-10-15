@@ -8,6 +8,8 @@ export type View =
   | { name: 'reports' }
   | { name: 'report'; params: ReportParams }
   | { name: 'settings' }
+  | { name: 'reconcile'; accountId?: number }
+  | { name: 'reconcileWork'; accountId: number }
 
 export interface Nav {
   view: View

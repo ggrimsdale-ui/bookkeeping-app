@@ -10,12 +10,14 @@ import { Entries } from './views/Entries'
 import { EntryEditor } from './views/EntryEditor'
 import { ReportsMenu, ReportView } from './views/Reports'
 import { Settings } from './views/Settings'
+import { ReconcileStart, ReconcileWork } from './views/Reconcile'
 import { formatDate } from './format'
 
 const SIDEBAR: { label: string; view: View }[] = [
   { label: 'Home', view: { name: 'home' } },
   { label: 'Chart of Accounts', view: { name: 'accounts' } },
   { label: 'Journal Entries', view: { name: 'entries' } },
+  { label: 'Reconcile', view: { name: 'reconcile' } },
   { label: 'Reports', view: { name: 'reports' } },
   { label: 'Company Settings', view: { name: 'settings' } }
 ]
@@ -114,8 +116,11 @@ export function App(): JSX.Element {
         </div>
         <nav>
           {SIDEBAR.map((item) => {
+            const root = stack[0].name
             const active =
-              stack[0].name === item.view.name || (item.view.name === 'reports' && stack[0].name === 'report')
+              root === item.view.name ||
+              (item.view.name === 'reports' && root === 'report') ||
+              (item.view.name === 'reconcile' && root === 'reconcileWork')
             return (
               <button key={item.label} className={active ? 'active' : ''} onClick={() => nav.go(item.view)}>
                 {item.label}
@@ -145,6 +150,8 @@ export function App(): JSX.Element {
         {view.name === 'entry' && <EntryEditor key={view.id ?? `new-${stack.length}`} nav={nav} id={view.id} />}
         {view.name === 'reports' && <ReportsMenu nav={nav} company={company} />}
         {view.name === 'report' && <ReportView key={JSON.stringify(view.params)} nav={nav} company={company} initial={view.params} />}
+        {view.name === 'reconcile' && <ReconcileStart key={view.accountId ?? 'any'} nav={nav} accountId={view.accountId} />}
+        {view.name === 'reconcileWork' && <ReconcileWork nav={nav} accountId={view.accountId} />}
         {view.name === 'settings' && <Settings nav={nav} company={company} onChange={setCompany} />}
       </main>
     </div>

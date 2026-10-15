@@ -127,6 +127,7 @@ export function EntryEditor({ nav, id }: { nav: Nav; id?: number }): JSX.Element
           {existing ? 'Journal Entry' : 'New Journal Entry'}
           {existing?.isVoid && <span className="badge">void</span>}
           {existing?.isOpening && <span className="badge">opening balances</span>}
+          {existing?.lines.some((l) => l.cleared === 'reconciled') && <span className="badge">reconciled</span>}
         </h1>
       </div>
       <fieldset disabled={readOnly} className="entry-header">

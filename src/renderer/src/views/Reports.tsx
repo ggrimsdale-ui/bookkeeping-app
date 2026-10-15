@@ -85,7 +85,8 @@ export function ReportView({ nav, company, initial }: { nav: Nav; company: OpenC
       periods,
       showChange: periods.length === 2 && showChange,
       accountIds: kind === 'generalLedger' && accountId ? [accountId] : undefined,
-      showZeroBalances: showZero
+      showZeroBalances: showZero,
+      reconciliationId: initial.reconciliationId
     }
   }
 
@@ -133,12 +134,13 @@ export function ReportView({ nav, company, initial }: { nav: Nav; company: OpenC
     }
   }
 
-  const title = REPORTS.find((r) => r.kind === kind)!.title
+  const title = REPORTS.find((r) => r.kind === kind)?.title ?? 'Reconciliation Report'
+  const fixed = kind === 'reconciliation'
   return (
     <div className="page report-page">
       <div className="report-controls no-print">
         <h1>{title}</h1>
-        <div className="toolbar">
+        {!fixed && <div className="toolbar">
           <label className="inline">
             Dates
             <select value={preset} onChange={(e) => applyPreset(e.target.value as RangePreset | 'custom')}>
@@ -202,7 +204,7 @@ export function ReportView({ nav, company, initial }: { nav: Nav; company: OpenC
             <input type="checkbox" checked={showZero} onChange={(e) => setShowZero(e.target.checked)} />
             Show zero balances
           </label>
-        </div>
+        </div>}
         <div className="toolbar">
           <button onClick={() => api.printReport()}>Print…</button>
           <button onClick={() => exportAs('pdf')}>Export PDF</button>
