@@ -5,6 +5,7 @@ import { CsvImport } from '../components/CsvImport'
 import { useDialogs } from '../components/Dialogs'
 import { AccountSelect } from '../components/inputs'
 import { WatchFolderDialog } from '../components/WatchFolder'
+import { AttachmentsDialog } from '../components/Attachments'
 import { formatDate, formatMoney, isProfitAndLoss } from '../format'
 import type { Nav } from '../nav'
 import type { Account, BankCounts, BankImportResult, BankRuleInput, BankTab, BankTransaction, BankTxPatch, WatchFolder } from '../../../shared/types'
@@ -63,6 +64,7 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
   const [busy, setBusy] = useState(false)
   const [watch, setWatch] = useState<WatchFolder | null>(null)
   const [editingWatch, setEditingWatch] = useState(false)
+  const [receiptsFor, setReceiptsFor] = useState<BankTransaction | null>(null)
 
   useEffect(() => {
     void api.listAccounts().then((all) => {
@@ -281,7 +283,7 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
     )
   }
 
-  const colSpan = tab === 'review' ? 10 : tab === 'done' ? 8 : 6
+  const colSpan = tab === 'review' ? 11 : tab === 'done' ? 9 : 7
 
   return (
     <div className="page bank-page">
@@ -427,6 +429,7 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
               {tab === 'done' && <th>Added to</th>}
               <th className="num">Spent</th>
               <th className="num">Received</th>
+              <th title="Receipts">📎</th>
               {tab !== 'excluded' && <th />}
             </tr>
           </thead>
@@ -481,6 +484,15 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
                   </>
                 )}
                 {amountCells(t)}
+                <td>
+                  <button
+                    className={`paperclip-button ${t.attachmentCount ? 'has' : ''}`}
+                    title={t.attachmentCount ? `${t.attachmentCount} receipt${t.attachmentCount === 1 ? '' : 's'}. Click to view or add.` : 'Attach a receipt'}
+                    onClick={() => setReceiptsFor(t)}
+                  >
+                    📎{t.attachmentCount > 0 ? ` ${t.attachmentCount}` : ''}
+                  </button>
+                </td>
                 {tab === 'review' && (
                   <td className="right">
                     <button
@@ -509,6 +521,14 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
       </div>
 
       {importing && feed && <CsvImport account={feed} onClose={() => setImporting(false)} onImported={imported} />}
+      {receiptsFor && (
+        <AttachmentsDialog
+          title={`Receipts: ${receiptsFor.payee} · ${formatDate(receiptsFor.date)} · ${formatMoney(Math.abs(receiptsFor.amount))}`}
+          target={{ bankTxId: receiptsFor.id }}
+          onClose={() => setReceiptsFor(null)}
+          onChange={nav.changed}
+        />
+      )}
       {editingWatch && feed && (
         <WatchFolderDialog
           account={feed}

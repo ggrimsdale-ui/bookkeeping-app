@@ -78,6 +78,7 @@ export interface JournalEntrySummary {
   isOpening: boolean
   amount: number
   accounts: string
+  attachmentCount: number
 }
 
 export interface EntryFilter {
@@ -232,6 +233,8 @@ export interface BankTransaction {
   match: BankMatch | null
   /** The user chose to add this as a new transaction even though a match was found. */
   ignoreMatch: boolean
+  /** Receipts attached to the bank transaction or to the entry it became. */
+  attachmentCount: number
 }
 
 export type BankTab = 'review' | 'done' | 'excluded'
@@ -299,4 +302,18 @@ export interface BankImportLog {
   autoAdded: number
   /** Why a watched-folder file was not imported, or what was left for review. */
   note: string
+}
+
+// ----- Attachments -----
+
+/** What an attachment belongs to: a journal entry, or an imported bank transaction (before or after it's added). */
+export type AttachmentTarget = { entryId: number } | { bankTxId: number }
+
+export interface Attachment {
+  id: number
+  fileName: string
+  mimeType: string
+  /** Bytes. */
+  size: number
+  addedAt: string
 }

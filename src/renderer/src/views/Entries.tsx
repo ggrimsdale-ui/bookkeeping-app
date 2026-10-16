@@ -60,6 +60,11 @@ export function Entries({ nav }: { nav: Nav }): JSX.Element {
                 {e.memo}
                 {e.isVoid && <span className="badge">void</span>}
                 {e.isOpening && <span className="badge">opening</span>}
+                {e.attachmentCount > 0 && (
+                  <span className="paperclip" title={`${e.attachmentCount} attachment${e.attachmentCount === 1 ? '' : 's'}`}>
+                    📎{e.attachmentCount > 1 ? e.attachmentCount : ''}
+                  </span>
+                )}
               </td>
               <td className="small">{e.accounts}</td>
               <td className="num">{e.isVoid ? '' : formatMoney(e.amount)}</td>

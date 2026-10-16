@@ -88,7 +88,8 @@ function toTx(r: TxRow): BankTransaction {
     status: r.status as BankTransaction['status'],
     entryId: r.entry_id,
     match: null,
-    ignoreMatch: r.ignore_match === 1
+    ignoreMatch: r.ignore_match === 1,
+    attachmentCount: 0
   }
 }
 
@@ -295,7 +296,22 @@ export function listBankTransactions(company: Company, accountId: number, tab: B
     [accountId, ...statuses]
   )
   const matches = tab === 'review' ? findMatches(company, accountId, rows) : new Map<number, BankMatch>()
-  return rows.map((r) => ({ ...toTx(r), match: matches.get(r.id) ?? null }))
+  const counts = new Map<string, number>()
+  for (const a of company.all<{ bank_tx_id: number | null; entry_id: number | null }>(
+    `SELECT a.bank_tx_id, a.entry_id FROM attachments a
+     WHERE a.bank_tx_id IN (SELECT id FROM bank_transactions WHERE account_id = ?)
+        OR a.entry_id IN (SELECT entry_id FROM bank_transactions WHERE account_id = ? AND entry_id IS NOT NULL)`,
+    [accountId, accountId]
+  )) {
+    // Counted once each, under the bank transaction and under the entry.
+    if (a.bank_tx_id !== null) counts.set(`t${a.bank_tx_id}`, (counts.get(`t${a.bank_tx_id}`) ?? 0) + 1)
+    else if (a.entry_id !== null) counts.set(`e${a.entry_id}`, (counts.get(`e${a.entry_id}`) ?? 0) + 1)
+  }
+  return rows.map((r) => ({
+    ...toTx(r),
+    match: matches.get(r.id) ?? null,
+    attachmentCount: (counts.get(`t${r.id}`) ?? 0) + (r.entry_id !== null ? counts.get(`e${r.entry_id}`) ?? 0 : 0)
+  }))
 }
 
 // ----- Importing -----
@@ -436,6 +452,7 @@ export function acceptBankTransactions(company: Company, ids: number[], override
         const match = r.ignore_match ? undefined : matches.get(r.id)
         if (match) {
           company.db.run("UPDATE bank_transactions SET status = 'matched', entry_id = ? WHERE id = ?", [match.entryId, r.id])
+          company.db.run('UPDATE attachments SET entry_id = ? WHERE bank_tx_id = ?', [match.entryId, r.id])
           result.matched++
           continue
         }
@@ -459,6 +476,8 @@ export function acceptBankTransactions(company: Company, ids: number[], override
           override
         )
         company.db.run("UPDATE bank_transactions SET status = 'added', entry_id = ? WHERE id = ?", [entry.id, r.id])
+        // Receipts attached during review go with the new entry.
+        company.db.run('UPDATE attachments SET entry_id = ? WHERE bank_tx_id = ?', [entry.id, r.id])
         result.added++
       }
     }
@@ -486,6 +505,7 @@ export function undoBankTransactions(company: Company, ids: number[], override?:
         company.deleteEntry(r.entry_id, override)
       }
       company.db.run("UPDATE bank_transactions SET status = 'review', entry_id = NULL WHERE id = ?", [r.id])
+      company.db.run('UPDATE attachments SET entry_id = NULL WHERE bank_tx_id = ?', [r.id])
     }
   })
 }
@@ -493,8 +513,12 @@ export function undoBankTransactions(company: Company, ids: number[], override?:
 /** Permanently removes review or excluded items, for example after importing the wrong file. */
 export function deleteBankTransactions(company: Company, ids: number[]): void {
   company.transaction(() => {
-    inChunks([...new Set(ids)], (chunk, ph) =>
+    inChunks([...new Set(ids)], (chunk, ph) => {
+      company.db.run(
+        `DELETE FROM attachments WHERE bank_tx_id IN (SELECT id FROM bank_transactions WHERE status IN ('review', 'excluded') AND id IN (${ph}))`,
+        chunk
+      )
       company.db.run(`DELETE FROM bank_transactions WHERE status IN ('review', 'excluded') AND id IN (${ph})`, chunk)
-    )
+    })
   })
 }

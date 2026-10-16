@@ -218,7 +218,7 @@ describe('bank feeds', () => {
 
   it('upgrades a version 2 company file', async () => {
     const c = await newCompany()
-    c.db.exec('DROP TABLE bank_watch_folders; DROP TABLE bank_transactions; DROP TABLE bank_imports; DROP TABLE bank_rules; DROP TABLE bank_csv_mappings')
+    c.db.exec('DROP TABLE attachments; DROP TABLE bank_watch_folders; DROP TABLE bank_transactions; DROP TABLE bank_imports; DROP TABLE bank_rules; DROP TABLE bank_csv_mappings')
     c.db.run("UPDATE meta SET value = '2' WHERE key = 'schemaVersion'")
     const reopened = Company.open(await sql(), c.export())
     expect(importBankRows(reopened, acct(reopened, '1000'), 'jan.csv', january).imported).toBe(4)

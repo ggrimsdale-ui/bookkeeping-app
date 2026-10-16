@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { addAttachment, deleteAttachment, getAttachment, listAttachments } from '../core/attachments'
 import initSqlJs from 'sql.js'
 import type { SqlJsStatic } from 'sql.js'
 import { ClosedPeriodError, Company, ReconciledChangeError } from '../core/company'
@@ -250,6 +251,28 @@ const handlers: { [K in ApiMethod]: (...args: Parameters<Api[K]>) => ReturnType<
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
   },
   checkWatchFolders: () => checkFolders(),
+
+  listAttachments: (target) => listAttachments(requireCompany(), target),
+  addAttachment: (target, fileName, data) => mutate((c) => addAttachment(c, target, fileName, new Uint8Array(data))),
+  getAttachment: (id) => getAttachment(requireCompany(), id),
+  deleteAttachment: (id) => mutate((c) => deleteAttachment(c, id)),
+  async openAttachment(id) {
+    const a = getAttachment(requireCompany(), id)
+    // A copy in the temp folder; the original stays inside the company file.
+    const dir = join(app.getPath('temp'), 'bookkeeping-attachments', String(id))
+    mkdirSync(dir, { recursive: true })
+    const path = join(dir, a.fileName)
+    writeFileAtomic(path, a.data)
+    const error = await shell.openPath(path)
+    if (error) throw new Error(error)
+  },
+  async saveAttachmentAs(id) {
+    const a = getAttachment(requireCompany(), id)
+    const result = await dialog.showSaveDialog(window!, { title: 'Save attachment', defaultPath: a.fileName })
+    if (result.canceled || !result.filePath) return null
+    writeFileAtomic(result.filePath, a.data)
+    return result.filePath
+  },
 
   report: (params) => buildReport(requireCompany(), params),
 

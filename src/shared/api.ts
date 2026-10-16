@@ -1,6 +1,8 @@
 import type {
   Account,
   AccountInput,
+  Attachment,
+  AttachmentTarget,
   BankAcceptResult,
   BankCounts,
   BankImportResult,
@@ -105,6 +107,15 @@ export interface Api {
   chooseFolder(): string | null
   /** Checks the watched folders now. Returns how many files were imported or set aside. */
   checkWatchFolders(): number
+
+  // Attachments (receipts)
+  listAttachments(target: AttachmentTarget): Attachment[]
+  addAttachment(target: AttachmentTarget, fileName: string, data: Uint8Array): Attachment
+  getAttachment(id: number): Attachment & { data: Uint8Array }
+  deleteAttachment(id: number): void
+  /** Opens the file in the program the computer uses for it. */
+  openAttachment(id: number): void
+  saveAttachmentAs(id: number): string | null
 
   // Reports
   report(params: ReportParams): Report
