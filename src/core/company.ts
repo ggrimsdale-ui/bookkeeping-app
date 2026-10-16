@@ -18,7 +18,7 @@ import type {
   JournalLine
 } from '../shared/types'
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 const FILE_MARKER = 'bookkeeping-company'
 
 const SCHEMA = `
@@ -78,6 +78,49 @@ const MIGRATIONS = [
     ending_balance INTEGER NOT NULL
   );
   CREATE INDEX idx_reconciliations_account ON reconciliations(account_id);
+  `,
+  // 3: bank feeds (CSV import, review and bulk categorizing)
+  `
+  CREATE TABLE bank_imports (
+    id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id),
+    file_name TEXT NOT NULL,
+    imported_at TEXT NOT NULL,
+    row_count INTEGER NOT NULL,
+    duplicate_count INTEGER NOT NULL
+  );
+  CREATE TABLE bank_transactions (
+    id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id),
+    import_id INTEGER REFERENCES bank_imports(id),
+    date TEXT NOT NULL,
+    description TEXT NOT NULL,
+    bank_memo TEXT NOT NULL DEFAULT '',
+    ref TEXT NOT NULL DEFAULT '',
+    amount INTEGER NOT NULL,
+    fingerprint TEXT NOT NULL,
+    payee TEXT NOT NULL DEFAULT '',
+    memo TEXT NOT NULL DEFAULT '',
+    category_id INTEGER REFERENCES accounts(id),
+    category_source TEXT,
+    status TEXT NOT NULL DEFAULT 'review',
+    entry_id INTEGER,
+    ignore_match INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE bank_rules (
+    id INTEGER PRIMARY KEY,
+    contains TEXT NOT NULL,
+    direction TEXT NOT NULL DEFAULT 'any',
+    category_id INTEGER NOT NULL REFERENCES accounts(id),
+    payee TEXT NOT NULL DEFAULT ''
+  );
+  CREATE TABLE bank_csv_mappings (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
+    mapping TEXT NOT NULL
+  );
+  CREATE INDEX idx_bank_tx_account ON bank_transactions(account_id, status);
+  CREATE INDEX idx_bank_tx_fingerprint ON bank_transactions(account_id, fingerprint);
+  CREATE INDEX idx_bank_tx_entry ON bank_transactions(entry_id);
   `
 ]
 
@@ -95,6 +138,8 @@ interface AccountRow {
 }
 
 export class Company {
+  private depth = 0
+
   private constructor(readonly db: Database) {
     db.run('PRAGMA foreign_keys = ON')
   }
@@ -180,8 +225,11 @@ export class Company {
     return this.db.exec('SELECT last_insert_rowid()')[0].values[0][0] as number
   }
 
+  /** Runs `fn` atomically. A nested call joins the outer transaction, so a bulk change saves completely or not at all. */
   transaction<T>(fn: () => T): T {
+    if (this.depth > 0) return fn()
     this.db.run('BEGIN')
+    this.depth++
     try {
       const result = fn()
       this.db.run('COMMIT')
@@ -189,6 +237,8 @@ export class Company {
     } catch (err) {
       this.db.run('ROLLBACK')
       throw err
+    } finally {
+      this.depth--
     }
   }
 
@@ -354,7 +404,15 @@ export class Company {
     if (used > 0) throw new Error('This account has transactions. Make it inactive instead of deleting it.')
     const kids = this.get<{ n: number }>('SELECT COUNT(*) AS n FROM accounts WHERE parent_id = ?', [id])!.n
     if (kids > 0) throw new Error('This account has sub-accounts. Delete or move them first.')
-    this.transaction(() => this.db.run('DELETE FROM accounts WHERE id = ?', [id]))
+    const imported = this.get<{ n: number }>('SELECT COUNT(*) AS n FROM bank_transactions WHERE account_id = ?', [id])!.n
+    if (imported > 0) throw new Error('This account has imported bank transactions. Make it inactive instead of deleting it.')
+    const rules = this.get<{ n: number }>('SELECT COUNT(*) AS n FROM bank_rules WHERE category_id = ?', [id])!.n
+    if (rules > 0) throw new Error('A bank rule uses this account. Change or delete the rule first.')
+    this.transaction(() => {
+      this.db.run('UPDATE bank_transactions SET category_id = NULL, category_source = NULL WHERE category_id = ?', [id])
+      this.db.run('DELETE FROM bank_csv_mappings WHERE account_id = ?', [id])
+      this.db.run('DELETE FROM accounts WHERE id = ?', [id])
+    })
   }
 
   private validateAccount(input: AccountInput, id: number | null): AccountInput {
@@ -527,6 +585,8 @@ export class Company {
     this.assertOpenPeriod([existing.date], override)
     this.assertReconciledChangeConfirmed(existing, override)
     this.transaction(() => {
+      // An imported bank transaction added as (or matched to) this entry goes back to For Review.
+      this.db.run("UPDATE bank_transactions SET status = 'review', entry_id = NULL WHERE entry_id = ?", [id])
       this.db.run('DELETE FROM journal_lines WHERE entry_id = ?', [id])
       this.db.run('DELETE FROM journal_entries WHERE id = ?', [id])
     })

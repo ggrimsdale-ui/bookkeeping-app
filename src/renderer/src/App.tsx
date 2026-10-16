@@ -11,12 +11,14 @@ import { EntryEditor } from './views/EntryEditor'
 import { ReportsMenu, ReportView } from './views/Reports'
 import { Settings } from './views/Settings'
 import { ReconcileStart, ReconcileWork } from './views/Reconcile'
+import { BankFeed } from './views/BankFeed'
 import { formatDate } from './format'
 
 const SIDEBAR: { label: string; view: View }[] = [
   { label: 'Home', view: { name: 'home' } },
   { label: 'Chart of Accounts', view: { name: 'accounts' } },
   { label: 'Journal Entries', view: { name: 'entries' } },
+  { label: 'Bank Feeds', view: { name: 'bank' } },
   { label: 'Reconcile', view: { name: 'reconcile' } },
   { label: 'Reports', view: { name: 'reports' } },
   { label: 'Company Settings', view: { name: 'settings' } }
@@ -152,6 +154,7 @@ export function App(): JSX.Element {
         {view.name === 'report' && <ReportView key={JSON.stringify(view.params)} nav={nav} company={company} initial={view.params} />}
         {view.name === 'reconcile' && <ReconcileStart key={view.accountId ?? 'any'} nav={nav} accountId={view.accountId} />}
         {view.name === 'reconcileWork' && <ReconcileWork nav={nav} accountId={view.accountId} />}
+        {view.name === 'bank' && <BankFeed key={view.accountId ?? 'any'} nav={nav} accountId={view.accountId} />}
         {view.name === 'settings' && <Settings nav={nav} company={company} onChange={setCompany} />}
       </main>
     </div>

@@ -1,6 +1,14 @@
 import type {
   Account,
   AccountInput,
+  BankAcceptResult,
+  BankCounts,
+  BankImportResult,
+  BankRule,
+  BankRuleInput,
+  BankTab,
+  BankTransaction,
+  BankTxPatch,
   ClosingInfo,
   ClosingOverride,
   CompanyInfo,
@@ -17,8 +25,12 @@ import type {
   TemplateId
 } from './types'
 import type { OpeningBalance } from '../core/openingBalances'
+import type { BankRowInput, CsvMapping } from '../core/csv'
 
-export type { OpeningBalance }
+export type { OpeningBalance, BankRowInput, CsvMapping }
+
+/** A saved column mapping, with the header titles it was made for. */
+export type SavedCsvMapping = CsvMapping & { headers?: string[] }
 
 export interface OpenCompany {
   path: string
@@ -70,6 +82,21 @@ export interface Api {
   finishReconcile(accountId: number, adjust: boolean, override?: ClosingOverride): number
   undoLastReconciliation(accountId: number): void
   listReconciliations(accountId: number): Reconciliation[]
+
+  // Bank feeds
+  bankCounts(accountId: number): BankCounts
+  listBankTransactions(accountId: number, tab: BankTab): BankTransaction[]
+  getCsvMapping(accountId: number): SavedCsvMapping | null
+  importBankRows(accountId: number, fileName: string, rows: BankRowInput[], mapping?: SavedCsvMapping): BankImportResult
+  updateBankTransactions(ids: number[], patch: BankTxPatch): void
+  acceptBankTransactions(ids: number[], override?: ClosingOverride): BankAcceptResult
+  excludeBankTransactions(ids: number[], excluded: boolean): void
+  undoBankTransactions(ids: number[], override?: ClosingOverride): void
+  deleteBankTransactions(ids: number[]): void
+  applyBankRules(accountId: number): number
+  listBankRules(): BankRule[]
+  saveBankRule(id: number | null, input: BankRuleInput): BankRule
+  deleteBankRule(id: number): void
 
   // Reports
   report(params: ReportParams): Report

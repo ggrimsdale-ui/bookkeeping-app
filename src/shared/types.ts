@@ -195,3 +195,82 @@ export interface ReconcileStart {
   serviceCharge?: StatementCharge
   interest?: StatementCharge
 }
+
+// ----- Bank feeds (CSV import) -----
+
+export type BankTxStatus = 'review' | 'added' | 'matched' | 'excluded'
+
+/** An existing register transaction that looks like the same bank transaction. */
+export interface BankMatch {
+  entryId: number
+  date: string
+  ref: string
+  memo: string
+}
+
+export interface BankTransaction {
+  id: number
+  accountId: number
+  importId: number | null
+  date: string
+  /** The bank's own description, as imported. */
+  description: string
+  bankMemo: string
+  ref: string
+  /** Cents. Positive is money in (a deposit, a card payment), negative is money out (a check, a card charge). */
+  amount: number
+  /** Cleaned-up name used as the entry memo. Starts as the bank description. */
+  payee: string
+  memo: string
+  categoryId: number | null
+  /** Where the category came from: a bank rule, a past choice for the same payee, or the user. */
+  categorySource: 'rule' | 'history' | 'user' | null
+  status: BankTxStatus
+  /** The journal entry it was added as, or matched to. */
+  entryId: number | null
+  /** For review items: a register transaction it can be matched to instead of adding a new one. */
+  match: BankMatch | null
+  /** The user chose to add this as a new transaction even though a match was found. */
+  ignoreMatch: boolean
+}
+
+export type BankTab = 'review' | 'done' | 'excluded'
+
+export interface BankCounts {
+  review: number
+  done: number
+  excluded: number
+}
+
+export interface BankTxPatch {
+  payee?: string
+  memo?: string
+  categoryId?: number | null
+  ignoreMatch?: boolean
+}
+
+export interface BankImportResult {
+  imported: number
+  duplicates: number
+  categorized: number
+  matched: number
+}
+
+export interface BankAcceptResult {
+  added: number
+  matched: number
+  /** Selected items left in review because they have no category and no match. */
+  skipped: number
+}
+
+export interface BankRule {
+  id: number
+  /** Matches when the bank description contains this text (any case). */
+  contains: string
+  direction: 'any' | 'in' | 'out'
+  categoryId: number
+  /** Optional cleaner payee name. */
+  payee: string
+}
+
+export type BankRuleInput = Omit<BankRule, 'id'>
