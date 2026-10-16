@@ -10,6 +10,7 @@ export type View =
   | { name: 'settings' }
   | { name: 'reconcile'; accountId?: number }
   | { name: 'reconcileWork'; accountId: number }
+  | { name: 'bank'; accountId?: number }
 
 export interface Nav {
   view: View

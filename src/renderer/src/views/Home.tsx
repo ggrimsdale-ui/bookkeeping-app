@@ -32,6 +32,10 @@ export function Home({ nav, company }: { nav: Nav; company: OpenCompany }): JSX.
           <strong>New journal entry</strong>
           <span>Record a transaction</span>
         </button>
+        <button className="tile" onClick={() => nav.go({ name: 'bank' })}>
+          <strong>Bank feeds</strong>
+          <span>Import and categorize bank transactions</span>
+        </button>
         <button className="tile" onClick={() => nav.go({ name: 'reconcile' })}>
           <strong>Reconcile</strong>
           <span>Match an account to its statement</span>

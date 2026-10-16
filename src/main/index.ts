@@ -17,6 +17,21 @@ import {
   startReconcile,
   undoLastReconciliation
 } from '../core/reconcile'
+import {
+  acceptBankTransactions,
+  applyRules,
+  bankCounts,
+  deleteBankTransactions,
+  deleteRule,
+  excludeBankTransactions,
+  getCsvMapping,
+  importBankRows,
+  listBankTransactions,
+  listRules,
+  saveRule,
+  undoBankTransactions,
+  updateBankTransactions
+} from '../core/bankFeed'
 import type { Api, ApiMethod, ApiResult, MenuCommand, OpenCompany } from '../shared/api'
 import { reportToXlsx } from './excel'
 import { addRecent, readFileBytes, readRecent, removeRecent, writeFileAtomic } from './files'
@@ -183,6 +198,20 @@ const handlers: { [K in ApiMethod]: (...args: Parameters<Api[K]>) => ReturnType<
   finishReconcile: (accountId, adjust, override) => mutate((c) => finishReconcile(c, accountId, adjust, override)),
   undoLastReconciliation: (accountId) => mutate((c) => undoLastReconciliation(c, accountId)),
   listReconciliations: (accountId) => listReconciliations(requireCompany(), accountId),
+
+  bankCounts: (accountId) => bankCounts(requireCompany(), accountId),
+  listBankTransactions: (accountId, tab) => listBankTransactions(requireCompany(), accountId, tab),
+  getCsvMapping: (accountId) => getCsvMapping(requireCompany(), accountId),
+  importBankRows: (accountId, fileName, rows, mapping) => mutate((c) => importBankRows(c, accountId, fileName, rows, mapping)),
+  updateBankTransactions: (ids, patch) => mutate((c) => updateBankTransactions(c, ids, patch)),
+  acceptBankTransactions: (ids, override) => mutate((c) => acceptBankTransactions(c, ids, override)),
+  excludeBankTransactions: (ids, excluded) => mutate((c) => excludeBankTransactions(c, ids, excluded)),
+  undoBankTransactions: (ids, override) => mutate((c) => undoBankTransactions(c, ids, override)),
+  deleteBankTransactions: (ids) => mutate((c) => deleteBankTransactions(c, ids)),
+  applyBankRules: (accountId) => mutate((c) => applyRules(c, accountId)),
+  listBankRules: () => listRules(requireCompany()),
+  saveBankRule: (id, input) => mutate((c) => saveRule(c, id, input)),
+  deleteBankRule: (id) => mutate((c) => deleteRule(c, id)),
 
   report: (params) => buildReport(requireCompany(), params),
 
