@@ -1,6 +1,8 @@
 import type {
   Account,
   AccountInput,
+  Attachment,
+  AttachmentTarget,
   BankAcceptResult,
   BankCounts,
   BankImportResult,
@@ -9,6 +11,8 @@ import type {
   BankTab,
   BankTransaction,
   BankTxPatch,
+  BankImportLog,
+  WatchFolder,
   ClosingInfo,
   ClosingOverride,
   CompanyInfo,
@@ -97,6 +101,21 @@ export interface Api {
   listBankRules(): BankRule[]
   saveBankRule(id: number | null, input: BankRuleInput): BankRule
   deleteBankRule(id: number): void
+  listBankImports(accountId: number): BankImportLog[]
+  getWatchFolder(accountId: number): WatchFolder | null
+  setWatchFolder(accountId: number, settings: Omit<WatchFolder, 'accountId'> | null): WatchFolder | null
+  chooseFolder(): string | null
+  /** Checks the watched folders now. Returns how many files were imported or set aside. */
+  checkWatchFolders(): number
+
+  // Attachments (receipts)
+  listAttachments(target: AttachmentTarget): Attachment[]
+  addAttachment(target: AttachmentTarget, fileName: string, data: Uint8Array): Attachment
+  getAttachment(id: number): Attachment & { data: Uint8Array }
+  deleteAttachment(id: number): void
+  /** Opens the file in the program the computer uses for it. */
+  openAttachment(id: number): void
+  saveAttachmentAs(id: number): string | null
 
   // Reports
   report(params: ReportParams): Report
@@ -116,4 +135,4 @@ export type ApiResult<T> =
       reconciledChange?: boolean
     }
 
-export type MenuCommand = 'new' | 'open' | 'close' | 'backup' | 'restore'
+export type MenuCommand = 'new' | 'open' | 'close' | 'backup' | 'restore' | 'refresh'

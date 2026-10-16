@@ -18,7 +18,7 @@ import type {
   JournalLine
 } from '../shared/types'
 
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 5
 const FILE_MARKER = 'bookkeeping-company'
 
 const SCHEMA = `
@@ -121,6 +121,33 @@ const MIGRATIONS = [
   CREATE INDEX idx_bank_tx_account ON bank_transactions(account_id, status);
   CREATE INDEX idx_bank_tx_fingerprint ON bank_transactions(account_id, fingerprint);
   CREATE INDEX idx_bank_tx_entry ON bank_transactions(entry_id);
+  `,
+  // 4: watched folders for bank statements
+  `
+  CREATE TABLE bank_watch_folders (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
+    folder TEXT NOT NULL,
+    auto_accept INTEGER NOT NULL DEFAULT 1,
+    accept_history INTEGER NOT NULL DEFAULT 0
+  );
+  ALTER TABLE bank_imports ADD COLUMN source TEXT NOT NULL DEFAULT 'manual';
+  ALTER TABLE bank_imports ADD COLUMN auto_added INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE bank_imports ADD COLUMN note TEXT NOT NULL DEFAULT '';
+  `,
+  // 5: receipts and other attachments, stored in the company file
+  `
+  CREATE TABLE attachments (
+    id INTEGER PRIMARY KEY,
+    entry_id INTEGER,
+    bank_tx_id INTEGER,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    added_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_attachments_entry ON attachments(entry_id);
+  CREATE INDEX idx_attachments_bank_tx ON attachments(bank_tx_id);
   `
 ]
 
@@ -411,6 +438,7 @@ export class Company {
     this.transaction(() => {
       this.db.run('UPDATE bank_transactions SET category_id = NULL, category_source = NULL WHERE category_id = ?', [id])
       this.db.run('DELETE FROM bank_csv_mappings WHERE account_id = ?', [id])
+      this.db.run('DELETE FROM bank_watch_folders WHERE account_id = ?', [id])
       this.db.run('DELETE FROM accounts WHERE id = ?', [id])
     })
   }
@@ -502,6 +530,12 @@ export class Company {
       params
     )
     const names = new Map(this.listAccounts().map((a) => [a.id, a.fullName]))
+    const attachments = new Map(
+      this.all<{ entry_id: number; n: number }>('SELECT entry_id, COUNT(*) AS n FROM attachments WHERE entry_id IS NOT NULL GROUP BY entry_id').map((r) => [
+        r.entry_id,
+        r.n
+      ])
+    )
     const lineAccounts = new Map<number, number[]>()
     for (const l of this.all<{ entry_id: number; account_id: number }>(
       'SELECT entry_id, account_id FROM journal_lines ORDER BY entry_id, line_no'
@@ -520,7 +554,8 @@ export class Company {
         isVoid: r.is_void === 1,
         isOpening: r.is_opening === 1,
         amount: (r.amount as number) ?? 0,
-        accounts: ids.length > 2 ? '-SPLIT-' : ids.map((id) => names.get(id) ?? '?').join(' / ')
+        accounts: ids.length > 2 ? '-SPLIT-' : ids.map((id) => names.get(id) ?? '?').join(' / '),
+        attachmentCount: attachments.get(r.id as number) ?? 0
       }
     })
   }
@@ -585,8 +620,11 @@ export class Company {
     this.assertOpenPeriod([existing.date], override)
     this.assertReconciledChangeConfirmed(existing, override)
     this.transaction(() => {
-      // An imported bank transaction added as (or matched to) this entry goes back to For Review.
+      // An imported bank transaction added as (or matched to) this entry goes back to For Review,
+      // keeping its receipts; receipts attached only to the entry go with it.
       this.db.run("UPDATE bank_transactions SET status = 'review', entry_id = NULL WHERE entry_id = ?", [id])
+      this.db.run('DELETE FROM attachments WHERE entry_id = ? AND bank_tx_id IS NULL', [id])
+      this.db.run('UPDATE attachments SET entry_id = NULL WHERE entry_id = ?', [id])
       this.db.run('DELETE FROM journal_lines WHERE entry_id = ?', [id])
       this.db.run('DELETE FROM journal_entries WHERE id = ?', [id])
     })

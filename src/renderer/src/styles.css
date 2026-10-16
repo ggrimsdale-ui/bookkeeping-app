@@ -904,6 +904,7 @@ table.bank-grid td {
 }
 
 table.bank-grid td.description {
+  min-width: 180px;
   max-width: 280px;
   word-break: break-word;
 }
@@ -1006,4 +1007,155 @@ button.small {
 .preview-scroll thead th {
   position: sticky;
   top: 0;
+}
+
+.watch-banner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.watch-form {
+  max-width: none;
+  margin-bottom: 16px;
+}
+
+.watch-form .row input {
+  flex: 1;
+}
+
+.watch-form label.checkbox {
+  align-items: flex-start;
+}
+
+.watch-form label.checkbox.indent {
+  margin-left: 22px;
+}
+
+.modal-footer .spacer {
+  flex: 1;
+}
+
+/* ----- Attachments ----- */
+
+.entry-attachments {
+  margin-top: 16px;
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  min-height: 48px;
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.attachments.dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f9fafb;
+}
+
+.attachment-chip .link {
+  text-decoration: none;
+  color: var(--text);
+}
+
+.attachment-chip .link:hover {
+  text-decoration: underline;
+  color: var(--accent);
+}
+
+.attachment-chip.pending {
+  border-style: dashed;
+  padding-right: 4px;
+}
+
+.attachment-chip .icon {
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+.attach-button {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.attach-button input {
+  display: none;
+}
+
+.paperclip {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+.paperclip-button {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  opacity: 0.35;
+}
+
+.paperclip-button.has {
+  opacity: 1;
+  font-weight: 600;
+}
+
+.paperclip-button:hover {
+  opacity: 1;
+}
+
+.viewer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  background: #f2f4f7;
+  border-radius: 4px;
+}
+
+.viewer-image {
+  max-width: 100%;
+  max-height: calc(100vh - 220px);
+  object-fit: contain;
+}
+
+.viewer-pdf {
+  width: 100%;
+  height: calc(100vh - 220px);
+  border: none;
+}
+
+.viewer-text {
+  align-self: stretch;
+  margin: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+
+.viewer-count {
+  align-self: center;
+}
+
+.modal:has(.viewer) {
+  width: 980px;
 }

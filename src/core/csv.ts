@@ -309,6 +309,19 @@ export function mapRows(rows: string[][], mapping: CsvMapping): MappedCsv {
   return result
 }
 
+/**
+ * Whether a mapping saved from an earlier import fits this file: the title row
+ * reads the same, or, for files without titles, the same columns hold dates and amounts.
+ */
+export function mappingFits(rows: string[][], saved: CsvMapping & { headers?: string[] }): boolean {
+  if (saved.headerRow >= 0) {
+    const titles = rows[saved.headerRow]?.map((h) => h.toLowerCase())
+    return !!saved.headers && JSON.stringify(titles) === JSON.stringify(saved.headers)
+  }
+  const { rows: mapped, skipped } = mapRows(rows, saved)
+  return mapped.length > 0 && skipped.length <= mapped.length / 5
+}
+
 /** Name for a column in the mapping step: its header text, or a spreadsheet-style letter. */
 export function columnLabel(rows: string[][], headerRow: number, i: number): string {
   const letter = i < 26 ? String.fromCharCode(65 + i) : `${String.fromCharCode(64 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`

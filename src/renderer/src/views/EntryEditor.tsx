@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { useDialogs } from '../components/Dialogs'
 import { AccountSelect, MoneyInput } from '../components/inputs'
+import { AttachmentList } from '../components/Attachments'
 import { formatMoney, today } from '../format'
 import type { Nav } from '../nav'
 import type { Account, JournalEntry, JournalLine } from '../../../shared/types'
@@ -23,12 +24,15 @@ export function EntryEditor({ nav, id }: { nav: Nav; id?: number }): JSX.Element
   const [memo, setMemo] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([blankLine(), blankLine(), blankLine(), blankLine()])
   const [saving, setSaving] = useState(false)
+  /** Receipts picked for a new entry, attached once it's saved. */
+  const [pending, setPending] = useState<File[]>([])
 
   const reset = async (): Promise<void> => {
     setExisting(null)
     setRef(await api.nextRef())
     setMemo('')
     setLines([blankLine(), blankLine(), blankLine(), blankLine()])
+    setPending([])
   }
 
   useEffect(() => {
@@ -80,9 +84,11 @@ export function EntryEditor({ nav, id }: { nav: Nav; id?: number }): JSX.Element
     }
     setSaving(true)
     try {
-      await dialogs.guarded((override) =>
+      const saved = await dialogs.guarded((override) =>
         existing ? api.updateEntry(existing.id, input, override) : api.createEntry(input, override)
       )
+      for (const f of pending) await api.addAttachment({ entryId: saved.id }, f.name, new Uint8Array(await f.arrayBuffer()))
+      setPending([])
       nav.changed()
       if (!andNew) nav.back()
       else if (existing) {
@@ -201,6 +207,16 @@ export function EntryEditor({ nav, id }: { nav: Nav; id?: number }): JSX.Element
           </tr>
         </tfoot>
       </table>
+
+      <section className="entry-attachments">
+        <h2>Receipts and attachments</h2>
+        <AttachmentList
+          target={existing ? { entryId: existing.id } : null}
+          pending={pending}
+          onPendingChange={setPending}
+          onChange={nav.changed}
+        />
+      </section>
 
       <div className="buttons">
         {existing && !existing.isVoid && (
