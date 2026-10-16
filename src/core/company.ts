@@ -18,7 +18,7 @@ import type {
   JournalLine
 } from '../shared/types'
 
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 const FILE_MARKER = 'bookkeeping-company'
 
 const SCHEMA = `
@@ -121,6 +121,18 @@ const MIGRATIONS = [
   CREATE INDEX idx_bank_tx_account ON bank_transactions(account_id, status);
   CREATE INDEX idx_bank_tx_fingerprint ON bank_transactions(account_id, fingerprint);
   CREATE INDEX idx_bank_tx_entry ON bank_transactions(entry_id);
+  `,
+  // 4: watched folders for bank statements
+  `
+  CREATE TABLE bank_watch_folders (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
+    folder TEXT NOT NULL,
+    auto_accept INTEGER NOT NULL DEFAULT 1,
+    accept_history INTEGER NOT NULL DEFAULT 0
+  );
+  ALTER TABLE bank_imports ADD COLUMN source TEXT NOT NULL DEFAULT 'manual';
+  ALTER TABLE bank_imports ADD COLUMN auto_added INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE bank_imports ADD COLUMN note TEXT NOT NULL DEFAULT '';
   `
 ]
 
@@ -411,6 +423,7 @@ export class Company {
     this.transaction(() => {
       this.db.run('UPDATE bank_transactions SET category_id = NULL, category_source = NULL WHERE category_id = ?', [id])
       this.db.run('DELETE FROM bank_csv_mappings WHERE account_id = ?', [id])
+      this.db.run('DELETE FROM bank_watch_folders WHERE account_id = ?', [id])
       this.db.run('DELETE FROM accounts WHERE id = ?', [id])
     })
   }

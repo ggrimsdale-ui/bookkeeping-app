@@ -250,6 +250,7 @@ export interface BankTxPatch {
 }
 
 export interface BankImportResult {
+  importId: number
   imported: number
   duplicates: number
   categorized: number
@@ -274,3 +275,28 @@ export interface BankRule {
 }
 
 export type BankRuleInput = Omit<BankRule, 'id'>
+
+/** A folder the app checks for new bank CSV files for one account. */
+export interface WatchFolder {
+  accountId: number
+  folder: string
+  /** Add confident transactions without review: rule categories and matches to existing entries. */
+  autoAccept: boolean
+  /** Also add transactions categorized from past choices for the same payee. */
+  acceptHistory: boolean
+}
+
+/** One file imported into an account, by hand or from its watched folder. */
+export interface BankImportLog {
+  id: number
+  accountId: number
+  fileName: string
+  importedAt: string
+  source: 'manual' | 'folder'
+  imported: number
+  duplicates: number
+  /** Added or matched automatically. */
+  autoAdded: number
+  /** Why a watched-folder file was not imported, or what was left for review. */
+  note: string
+}

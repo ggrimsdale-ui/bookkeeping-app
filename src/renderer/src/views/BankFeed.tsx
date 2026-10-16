@@ -4,9 +4,10 @@ import { BankRules } from '../components/BankRules'
 import { CsvImport } from '../components/CsvImport'
 import { useDialogs } from '../components/Dialogs'
 import { AccountSelect } from '../components/inputs'
+import { WatchFolderDialog } from '../components/WatchFolder'
 import { formatDate, formatMoney, isProfitAndLoss } from '../format'
 import type { Nav } from '../nav'
-import type { Account, BankCounts, BankImportResult, BankRuleInput, BankTab, BankTransaction, BankTxPatch } from '../../../shared/types'
+import type { Account, BankCounts, BankImportResult, BankRuleInput, BankTab, BankTransaction, BankTxPatch, WatchFolder } from '../../../shared/types'
 
 const TABS: { tab: BankTab; label: string }[] = [
   { tab: 'review', label: 'For Review' },
@@ -60,6 +61,8 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
   const [bulkPayee, setBulkPayee] = useState('')
   const [bulkMemo, setBulkMemo] = useState('')
   const [busy, setBusy] = useState(false)
+  const [watch, setWatch] = useState<WatchFolder | null>(null)
+  const [editingWatch, setEditingWatch] = useState(false)
 
   useEffect(() => {
     void api.listAccounts().then((all) => {
@@ -74,10 +77,11 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
 
   useEffect(() => {
     if (feedId === null) return
-    void Promise.all([api.listBankTransactions(feedId, tab), api.bankCounts(feedId)])
-      .then(([list, c]) => {
+    void Promise.all([api.listBankTransactions(feedId, tab), api.bankCounts(feedId), api.getWatchFolder(feedId)])
+      .then(([list, c, w]) => {
         setTxs(list)
         setCounts(c)
+        setWatch(w)
       })
       .catch(dialogs.error)
   }, [feedId, tab, nav.version, dialogs])
@@ -289,6 +293,9 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
             Import CSV file…
           </button>
           <button onClick={() => setRules({})}>Rules…</button>
+          <button disabled={!feed} onClick={() => setEditingWatch(true)}>
+            {watch ? 'Watched folder…' : 'Watch a folder…'}
+          </button>
           {tab === 'review' && (
             <button disabled={busy || counts.review === 0} onClick={applyRules} title="Categorize waiting items using your rules and past choices">
               Apply rules
@@ -296,6 +303,27 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
           )}
         </div>
       </div>
+
+      {watch && (
+        <div className="info-banner watch-banner">
+          <span>
+            Watching <strong>{watch.folder}</strong> for new statements.{' '}
+            {watch.autoAccept ? 'Transactions covered by a rule or a match are added automatically.' : 'New transactions wait here for review.'}
+          </span>
+          <button
+            className="link"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const n = await api.checkWatchFolders()
+                if (n === 0) void dialogs.alert('No new files in the watched folder.', 'Watched folder')
+              })
+            }
+          >
+            Check now
+          </button>
+        </div>
+      )}
 
       <div className="tabs">
         {TABS.map((t) => (
@@ -481,6 +509,17 @@ export function BankFeed({ nav, accountId }: { nav: Nav; accountId?: number }): 
       </div>
 
       {importing && feed && <CsvImport account={feed} onClose={() => setImporting(false)} onImported={imported} />}
+      {editingWatch && feed && (
+        <WatchFolderDialog
+          account={feed}
+          current={watch}
+          onClose={() => setEditingWatch(false)}
+          onSaved={() => {
+            setEditingWatch(false)
+            nav.changed()
+          }}
+        />
+      )}
       {rules && <BankRules accounts={accounts} initial={rules.initial} onClose={() => setRules(null)} onChanged={nav.changed} />}
     </div>
   )

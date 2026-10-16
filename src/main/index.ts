@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import initSqlJs from 'sql.js'
 import type { SqlJsStatic } from 'sql.js'
@@ -33,7 +34,9 @@ import {
   updateBankTransactions
 } from '../core/bankFeed'
 import type { Api, ApiMethod, ApiResult, MenuCommand, OpenCompany } from '../shared/api'
+import { getWatchFolder, listBankImports, setWatchFolder } from '../core/autoImport'
 import { reportToXlsx } from './excel'
+import { scanWatchFolders } from './watcher'
 import { addRecent, readFileBytes, readRecent, removeRecent, writeFileAtomic } from './files'
 
 const COMPANY_FILTER = { name: 'Bookkeeping Company File', extensions: ['books'] }
@@ -42,6 +45,26 @@ const BACKUP_FILTER = { name: 'Bookkeeping Backup', extensions: ['booksbak'] }
 let SQL: SqlJsStatic
 let window: BrowserWindow | null = null
 let session: { company: Company; path: string } | null = null
+
+/** How often watched folders are checked while a company is open. */
+const WATCH_INTERVAL_MS = 15000
+setInterval(() => checkFolders(), WATCH_INTERVAL_MS)
+
+/** Imports any new files from the open company's watched folders and tells the UI to refresh. */
+function checkFolders(): number {
+  if (!session) return 0
+  let handled = 0
+  try {
+    handled = scanWatchFolders(session.company)
+  } catch (err) {
+    console.error('Watched folder check failed:', err)
+  }
+  if (handled > 0) {
+    save()
+    sendMenu('refresh')
+  }
+  return handled
+}
 
 function requireCompany(): Company {
   if (!session) throw new Error('No company is open.')
@@ -64,6 +87,8 @@ function openPath(path: string): OpenCompany {
   session = { company, path }
   addRecent(path, company.getInfo().name)
   updateTitle()
+  // Pick up statements dropped in while the company was closed.
+  setTimeout(() => checkFolders(), 1000)
   return describe()!
 }
 
@@ -212,6 +237,19 @@ const handlers: { [K in ApiMethod]: (...args: Parameters<Api[K]>) => ReturnType<
   listBankRules: () => listRules(requireCompany()),
   saveBankRule: (id, input) => mutate((c) => saveRule(c, id, input)),
   deleteBankRule: (id) => mutate((c) => deleteRule(c, id)),
+  listBankImports: (accountId) => listBankImports(requireCompany(), accountId),
+  getWatchFolder: (accountId) => getWatchFolder(requireCompany(), accountId),
+  setWatchFolder(accountId, settings) {
+    if (settings && !existsSync(settings.folder)) throw new Error(`Folder not found: ${settings.folder}`)
+    mutate((c) => setWatchFolder(c, accountId, settings))
+    setTimeout(() => checkFolders(), 500)
+    return getWatchFolder(requireCompany(), accountId)
+  },
+  async chooseFolder() {
+    const result = await dialog.showOpenDialog(window!, { title: 'Choose a folder to watch for bank statements', properties: ['openDirectory', 'createDirectory'] })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  },
+  checkWatchFolders: () => checkFolders(),
 
   report: (params) => buildReport(requireCompany(), params),
 

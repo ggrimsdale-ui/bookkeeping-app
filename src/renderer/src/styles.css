@@ -904,6 +904,7 @@ table.bank-grid td {
 }
 
 table.bank-grid td.description {
+  min-width: 180px;
   max-width: 280px;
   word-break: break-word;
 }
@@ -1006,4 +1007,33 @@ button.small {
 .preview-scroll thead th {
   position: sticky;
   top: 0;
+}
+
+.watch-banner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.watch-form {
+  max-width: none;
+  margin-bottom: 16px;
+}
+
+.watch-form .row input {
+  flex: 1;
+}
+
+.watch-form label.checkbox {
+  align-items: flex-start;
+}
+
+.watch-form label.checkbox.indent {
+  margin-left: 22px;
+}
+
+.modal-footer .spacer {
+  flex: 1;
 }

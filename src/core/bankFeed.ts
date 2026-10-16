@@ -366,6 +366,7 @@ export function importBankRows(
   const imported = company.all<TxRow>('SELECT * FROM bank_transactions WHERE import_id = ?', [importId])
   const matched = findMatches(company, accountId, company.all<TxRow>("SELECT * FROM bank_transactions WHERE account_id = ? AND status = 'review'", [accountId]))
   return {
+    importId,
     imported: fresh.length,
     duplicates,
     categorized,

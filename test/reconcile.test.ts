@@ -178,7 +178,7 @@ describe('reconciliation', () => {
     const c = await newCompany()
     // Simulate an old file: drop the reconciliation tables and columns.
     c.db.exec(`
-      DROP TABLE bank_transactions; DROP TABLE bank_imports; DROP TABLE bank_rules; DROP TABLE bank_csv_mappings;
+      DROP TABLE bank_watch_folders; DROP TABLE bank_transactions; DROP TABLE bank_imports; DROP TABLE bank_rules; DROP TABLE bank_csv_mappings;
       DROP TABLE reconcile_drafts; DROP TABLE reconciliations;
       ALTER TABLE journal_lines DROP COLUMN reconciliation_id; ALTER TABLE journal_lines DROP COLUMN cleared;
       UPDATE meta SET value = '1' WHERE key = 'schemaVersion';

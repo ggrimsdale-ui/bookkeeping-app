@@ -78,6 +78,7 @@ export function App(): JSX.Element {
         } else if (command === 'open') void commands.open()
         else if (command === 'restore') void commands.restore()
         else if (command === 'close') void commands.close()
+        else if (command === 'refresh') setVersion((v) => v + 1)
         else if (command === 'backup') {
           if (company) void commands.backup()
         }

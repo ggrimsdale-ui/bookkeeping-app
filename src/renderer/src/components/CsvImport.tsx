@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { Modal, useDialogs } from './Dialogs'
 import { formatDate, formatMoney } from '../format'
-import { columnLabel, decodeText, detectDelimiter, guessMapping, mapRows, parseCsv } from '../../../core/csv'
+import { columnLabel, decodeText, detectDelimiter, guessMapping, mapRows, mappingFits, parseCsv } from '../../../core/csv'
 import type { CsvMapping, DateFormat } from '../../../core/csv'
 import type { Account, BankImportResult } from '../../../shared/types'
 
@@ -42,10 +42,7 @@ export function CsvImport({
       const rows = parseCsv(text, delimiter)
       if (rows.length === 0) throw new Error('This file is empty.')
       const saved = await api.getCsvMapping(account.id)
-      const fits =
-        saved?.headers &&
-        saved.headerRow >= 0 &&
-        JSON.stringify(rows[saved.headerRow]?.map((h) => h.toLowerCase())) === JSON.stringify(saved.headers)
+      const fits = !!saved && mappingFits(rows, saved)
       const { headers: _headers, ...savedMapping } = saved ?? {}
       setMapping(fits ? (savedMapping as CsvMapping) : guessMapping(rows, delimiter))
       setFile({ fileName: f.name, rows, remembered: !!fits })
